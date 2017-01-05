@@ -1,2 +1,3 @@
 # mqxx
-message queue client
+
+minimal message queue client for kafka/rocketmq

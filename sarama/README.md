@@ -1,0 +1,1 @@
+a stripped down version of github.com/Shopify/sarama
