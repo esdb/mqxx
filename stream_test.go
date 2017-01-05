@@ -1,4 +1,4 @@
-package stream_pool
+package mqxx
 
 import (
 	"testing"
