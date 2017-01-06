@@ -21,6 +21,23 @@ const (
 	OffsetOldest int64 = -2
 )
 
+// Strategy for partition to consumer assignement
+type Strategy string
+
+const (
+	// StrategyRange is the default and assigns partition ranges to consumers.
+	// Example with six partitions and two consumers:
+	//   C1: [0, 1, 2]
+	//   C2: [3, 4, 5]
+	StrategyRange Strategy = "range"
+
+	// StrategyRoundRobin assigns partitions by alternating over consumers.
+	// Example with six partitions and two consumers:
+	//   C1: [0, 2, 4]
+	//   C2: [1, 3, 5]
+	StrategyRoundRobin Strategy = "roundrobin"
+)
+
 var streams chan *Stream
 var globalIdGen int32
 
@@ -54,6 +71,12 @@ func (stream *Stream) GetMetadata(address string, topics ...string) (*sarama.Met
 	return resp, stream.execute(address, req, resp)
 }
 
+func (stream *Stream) GetConsumerMetadata(address string, group string) (*sarama.ConsumerMetadataResponse, error) {
+	req := &sarama.ConsumerMetadataRequest{group}
+	resp := &sarama.ConsumerMetadataResponse{}
+	return resp, stream.execute(address, req, resp)
+}
+
 // GetOffset queries the cluster to get the most recent available offset at the
 // given time on the topic/partition combination. Time should be OffsetOldest for
 // the earliest available offset, OffsetNewest for the offset of the message that
@@ -78,6 +101,16 @@ func (stream *Stream) ProduceAsync(address string, req *sarama.ProduceRequest) (
 	}
 	resp := &sarama.ProduceResponse{}
 	return resp, stream.send(address, req)
+}
+
+func (stream *Stream) Fetch(address string, req *sarama.FetchRequest) (*sarama.FetchResponse, error) {
+	resp := &sarama.FetchResponse{}
+	return resp, stream.execute(address, req, resp)
+}
+
+func (stream *Stream) JoinGroup(address string, req *sarama.JoinGroupRequest) (*sarama.JoinGroupResponse, error) {
+	resp := &sarama.JoinGroupResponse{}
+	return resp, stream.execute(address, req, resp)
 }
 
 func (stream *Stream) Close() {

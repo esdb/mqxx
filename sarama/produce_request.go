@@ -193,7 +193,7 @@ func (r *ProduceRequest) AddMessage(topic string, partition int32, msg *Message)
 		r.msgSets[topic][partition] = set
 	}
 
-	set.addMessage(msg)
+	set.AddMessage(msg)
 }
 
 func (r *ProduceRequest) AddSet(topic string, partition int32, set *MessageSet) {

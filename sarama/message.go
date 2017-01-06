@@ -9,6 +9,7 @@ import (
 
 	"github.com/eapache/go-xerial-snappy"
 	"github.com/pierrec/lz4"
+	"github.com/rcrowley/go-metrics"
 )
 
 // CompressionCodec represents the various compression codecs recognized by Kafka in messages.
@@ -54,6 +55,14 @@ func (m *Message) encode(pe packetEncoder) error {
 	}
 
 	var payload []byte
+
+	if m.Set != nil {
+		val, err := encode(m.Set, metrics.DefaultRegistry)
+		if err != nil {
+			return err
+		}
+		m.Value = val
+	}
 
 	if m.compressedCache != nil {
 		payload = m.compressedCache
