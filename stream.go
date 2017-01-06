@@ -5,6 +5,7 @@ import (
 	"github.com/esdb/mqxx/sarama"
 	"github.com/esdb/mqxx/conn_pool"
 	"io"
+	"errors"
 )
 
 const (
@@ -33,7 +34,11 @@ type Stream struct {
 	channel       chan error
 }
 
-func Borrow() *Stream {
+/*
+stream is not bound to broker, it can talk to any server
+it just represent a session of interaction
+ */
+func NewStream() *Stream {
 	select {
 	case stream := <-streams:
 		return stream
@@ -58,12 +63,24 @@ func (stream *Stream) GetOffset(address string, req *sarama.OffsetRequest) (*sar
 	return resp, stream.execute(address, req, resp)
 }
 
-func (stream *Stream) Produce(address string, req *sarama.ProduceRequest) (*sarama.ProduceResponse, error) {
+func (stream *Stream) Produce(address string, req *sarama.ProduceRequest, requiredAcks sarama.RequiredAcks) (*sarama.ProduceResponse, error) {
+	if requiredAcks == sarama.NoResponse {
+		return nil, errors.New("required acks can not be NoResponse for sync producer")
+	}
+	req.RequiredAcks = requiredAcks
 	resp := &sarama.ProduceResponse{}
 	return resp, stream.execute(address, req, resp)
 }
 
-func (stream *Stream) Release() {
+func (stream *Stream) ProduceAsync(address string, req *sarama.ProduceRequest) (*sarama.ProduceResponse, error) {
+	if req.RequiredAcks != sarama.NoResponse {
+		return nil, errors.New("required acks must be NoResponse for async producer")
+	}
+	resp := &sarama.ProduceResponse{}
+	return resp, stream.send(address, req)
+}
+
+func (stream *Stream) Close() {
 	select {
 	case streams <- stream:
 	default:
@@ -103,6 +120,19 @@ func (stream *Stream) execute(address string, req sarama.ProtocolBody, resp sara
 	}
 	err = <-stream.channel
 	return err
+}
+
+func (stream *Stream) send(address string, req sarama.ProtocolBody) error {
+	reqBytes, err := sarama.Encode(stream.correlationId, "mqxx", req)
+	if err != nil {
+		return err
+	}
+	conn, err := conn_pool.Borrow(address)
+	if err != nil {
+		return err
+	}
+	// assign new correlation id, in case got response from server
+	return conn.Send(nextCorrelationId(), nil, reqBytes)
 }
 
 func nextCorrelationId() int32 {

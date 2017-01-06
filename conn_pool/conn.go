@@ -6,6 +6,7 @@ import (
 	"io"
 	"github.com/esdb/mqxx/sarama"
 	"sync"
+	"io/ioutil"
 )
 
 /*
@@ -65,27 +66,27 @@ func (conn *Conn) backgroundPoll() {
 	for {
 		_, err := io.ReadFull(conn.obj, headerBytes)
 		if err != nil {
-			// TODO: add logging
-			conn.obj.Close()
-			close(conn.closed)
-			return
+			goto error_handling
 		}
 		correlationId, packetSize, err := sarama.DecodeHeader(headerBytes)
 		callback := conn.removeCallback(correlationId)
 		if callback == nil {
-			// TODO: add logging
-			conn.obj.Close()
-			close(conn.closed)
-			return
-		}
-		err = callback(int(packetSize), conn.obj)
-		if err != nil {
-			// TODO: add logging
-			conn.obj.Close()
-			close(conn.closed)
-			return
+			_, err := io.CopyN(ioutil.Discard, conn.obj, int64(packetSize))
+			if err != nil {
+				goto error_handling
+			}
+		} else {
+			err = callback(int(packetSize), conn.obj)
+			if err != nil {
+				goto error_handling
+			}
 		}
 	}
+error_handling:
+	// TODO: add logging
+	conn.obj.Close()
+	close(conn.closed)
+	return
 }
 
 func (conn *Conn) Release() error {
@@ -102,7 +103,9 @@ func (conn *Conn) Release() error {
 }
 
 func (conn *Conn) Send(correlationId int32, callback SendCallback, reqBytes []byte) error {
-	conn.addCallback(correlationId, callback)
+	if callback != nil {
+		conn.addCallback(correlationId, callback)
+	}
 	_, err := conn.obj.Write(reqBytes)
 	if err != nil {
 		return err

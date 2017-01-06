@@ -7,7 +7,7 @@ import (
 
 func Test_borrow(t *testing.T) {
 	should := require.New(t)
-	stream := Borrow()
+	stream := NewStream()
 	should.NotNil(stream)
-	stream.Release()
+	stream.Close()
 }
